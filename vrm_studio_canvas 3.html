@@ -1,0 +1,1720 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VRM Studio Canvas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js" crossorigin="anonymous"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.js",
+            "@pixiv/three-vrm-animation": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm-animation@3/lib/three-vrm-animation.module.js",
+            "kalidokit": "https://unpkg.com/kalidokit@1.1.5/dist/kalidokit.es.js"
+        }
+    }
+    </script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #fdf2f8; font-family: 'M PLUS Rounded 1c', sans-serif; }
+        canvas#webgl-canvas { display: block; width: 100vw; height: 100vh; position: fixed; inset: 0; z-index: 0; }
+        .mirror-video { transform: scaleX(-1); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(255, 240, 245, 0.6); }
+        ::-webkit-scrollbar-thumb { background: rgba(236, 72, 153, 0.4); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(236, 72, 153, 0.7); }
+    </style>
+</head>
+<body>
+    <canvas id="webgl-canvas"></canvas>
+
+    <header id="app-header" class="fixed top-0 left-0 right-0 z-20 p-4 flex items-center justify-between pointer-events-none transition-opacity duration-300">
+        <div class="flex items-center gap-3 bg-white/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-pink-200/60 shadow-lg pointer-events-auto">
+            <div class="w-3 h-3 rounded-full bg-pink-500 animate-pulse"></div>
+            <h1 class="text-sm font-bold tracking-wide text-slate-800">VRM Studio Canvas</h1>
+        </div>
+        <div class="flex items-center gap-2 pointer-events-auto flex-wrap justify-end">
+            <button id="toggle-menu-btn" class="bg-white/80 hover:bg-pink-50/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-pink-200/60 text-xs font-medium text-slate-700 transition-all shadow-lg flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                <span id="toggle-menu-text">メニュー非表示</span>
+            </button>
+            <button id="toggle-face-btn" class="bg-white/80 hover:bg-pink-50/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-pink-200/60 text-xs font-medium text-slate-700 transition-all shadow-lg flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span id="toggle-face-text">表情非表示</span>
+            </button>
+            <button id="toggle-hand-btn" class="bg-white/80 hover:bg-pink-50/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-pink-200/60 text-xs font-medium text-slate-700 transition-all shadow-lg flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"></path></svg>
+                <span id="toggle-hand-text">ハンド非表示</span>
+            </button>
+            <button id="toggle-cam-preview-btn" class="bg-white/80 hover:bg-pink-50/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-pink-200/60 text-xs font-medium text-slate-700 transition-all shadow-lg flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                <span id="toggle-cam-text">カメラ非表示</span>
+            </button>
+            <button id="take-photo-btn" class="bg-pink-500 hover:bg-pink-600 backdrop-blur-md px-4 py-2 rounded-2xl border border-pink-300 text-xs font-bold text-white transition-all shadow-lg shadow-pink-500/20 flex items-center gap-1.5 ml-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <span>チェキ撮影</span>
+            </button>
+        </div>
+    </header>
+
+    <div id="settings-panel" class="fixed top-20 left-4 bg-white/85 backdrop-blur-md p-4 rounded-3xl border border-pink-200/60 shadow-xl z-20 flex flex-col gap-4 w-72 transition-all duration-300">
+        <div class="flex items-center justify-between border-b border-pink-100 pb-2">
+            <h2 class="text-xs font-bold text-slate-800 tracking-wider uppercase">コントロールパネル</h2>
+            <span id="vrma-status-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 border border-pink-200">トラッキング中</span>
+        </div>
+        
+        <div class="flex flex-col gap-1.5">
+            <div class="flex justify-between text-xs text-slate-600">
+                <span>環境光 (明るさ)</span>
+                <span id="light-val" class="font-mono text-pink-600">1.0</span>
+            </div>
+            <input type="range" id="light-range" min="0.1" max="2.0" step="0.1" value="1.0" class="w-full accent-pink-500 cursor-pointer h-1.5 bg-pink-100 rounded-lg">
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-pink-100">
+            <span class="text-xs text-slate-700">テーマカラー 1 (ピンク)</span>
+            <div class="flex items-center gap-2">
+                <input type="color" id="theme-color-1" value="#ff66a3" class="w-8 h-8 rounded-xl bg-transparent cursor-pointer border border-pink-200">
+            </div>
+        </div>
+        <div class="flex items-center justify-between pt-1">
+            <span class="text-xs text-slate-700">テーマカラー 2 (水色)</span>
+            <div class="flex items-center gap-2">
+                <input type="color" id="theme-color-2" value="#66cdaa" class="w-8 h-8 rounded-xl bg-transparent cursor-pointer border border-pink-200">
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-1 border-t border-pink-100">
+            <span class="text-xs text-slate-700">アウトライン色 (線画)</span>
+            <div class="flex items-center gap-2">
+                <input type="color" id="outline-color" value="#000000" class="w-8 h-8 rounded-xl bg-transparent cursor-pointer border border-pink-200" title="線画の色を変更">
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-1 border-t border-pink-100">
+            <span class="text-xs text-slate-700">フェイストラッキング</span>
+            <button id="toggle-tracking-btn" class="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-medium transition-colors shadow-sm">有効</button>
+        </div>
+
+        <div class="flex items-center justify-between pt-1 border-t border-pink-100">
+            <span class="text-xs text-slate-700">腕・ハンドトラッキング</span>
+            <button id="toggle-hand-tracking-btn" class="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-medium transition-colors shadow-sm">有効</button>
+        </div>
+
+        <div class="flex flex-col gap-2 pt-2 border-t border-pink-100">
+            <span class="text-xs font-semibold text-slate-700">VRMA モーション (.vrma)</span>
+            <label for="vrma-upload" class="cursor-pointer inline-flex items-center justify-center px-4 py-2 bg-pink-500 hover:bg-pink-600 rounded-2xl text-xs font-medium transition-all text-white shadow-lg shadow-pink-500/20 active:scale-95">
+                <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                VRMAをインポート
+                <input type="file" id="vrma-upload" accept=".vrma" class="hidden" />
+            </label>
+            <div class="flex items-center justify-between text-xs text-slate-500 mt-1">
+                <span class="truncate max-w-[150px]">状態: <span id="vrma-status" class="text-pink-600 font-medium">カメラ追従中</span></span>
+                <button id="stop-vrma-btn" class="px-2 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-[10px] transition-colors hidden shadow-sm">停止</button>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-2 pt-2 border-t border-pink-100">
+            <span class="text-xs font-semibold text-slate-700">画像前景・後景オブジェクト</span>
+            <div class="flex gap-2">
+                <label for="scene-img-upload" class="cursor-pointer flex-1 inline-flex items-center justify-center px-3 py-2 bg-pink-500 hover:bg-pink-600 rounded-2xl text-xs font-medium transition-all text-white shadow-lg shadow-pink-500/20 active:scale-95">
+                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    画像を追加
+                    <input type="file" id="scene-img-upload" accept="image/*" class="hidden" />
+                </label>
+                <select id="scene-img-layer" class="bg-pink-50 border border-pink-200 rounded-2xl text-xs text-slate-700 px-2 outline-none cursor-pointer">
+                    <option value="bg">後景 (背景)</option>
+                    <option value="fg" selected>前景 (手前)</option>
+                </select>
+            </div>
+            <div id="scene-img-list" class="flex flex-col gap-1.5 max-h-64 overflow-y-auto mt-1 pr-1">
+                <span class="text-[10px] text-slate-400 text-center py-1">画像オブジェクトはありません</span>
+            </div>
+        </div>
+
+        <div class="pt-2 border-t border-pink-100">
+            <label for="vrm-switch" class="cursor-pointer inline-flex items-center justify-center w-full px-4 py-2 bg-pink-50 hover:bg-pink-100 rounded-2xl text-xs font-medium transition-colors text-slate-700 border border-pink-200">
+                別のVRMモデルに変更
+                <input type="file" id="vrm-switch" accept=".vrm" class="hidden" />
+            </label>
+        </div>
+    </div>
+
+    <div id="face-expression-panel" class="fixed top-1/2 right-6 transform -translate-y-1/2 bg-white/85 backdrop-blur-md px-3 py-4 rounded-3xl border border-pink-200/60 shadow-xl z-20 flex flex-col gap-3 items-center transition-all duration-300">
+        <span class="text-[10px] font-bold text-slate-400 tracking-wider mb-1">FACE</span>
+        <button id="btn-face-auto" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-[10px] font-bold text-slate-700 shadow-sm transition-all active:scale-95">Auto</button>
+        <button id="btn-face-neutral" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95" title="Neutral">😐</button>
+        <button id="btn-face-happy" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95" title="Happy">😄</button>
+        <button id="btn-face-angry" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95" title="Angry">😠</button>
+        <button id="btn-face-sad" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95" title="Sad">😢</button>
+        <button id="btn-face-relaxed" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95" title="Relaxed">😌</button>
+        <button id="btn-face-surprised" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95" title="Surprised">😲</button>
+    </div>
+
+    <div id="hand-pose-panel" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white/85 backdrop-blur-md px-4 py-3 rounded-3xl border border-pink-200/60 shadow-xl z-20 flex gap-4 items-center transition-all duration-300 max-w-[95vw] overflow-x-auto no-scrollbar">
+        <div class="flex flex-col items-center gap-1.5 shrink-0">
+            <span class="text-[9px] font-bold text-slate-400 tracking-wider">RIGHT HAND</span>
+            <div class="flex gap-1.5">
+                <button id="btn-rh-auto" class="px-3 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-xs font-bold text-slate-700 shadow-sm transition-all active:scale-95">Auto</button>
+                <button id="btn-rh-rock" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95">✊</button>
+                <button id="btn-rh-scissors" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95">✌️</button>
+                <button id="btn-rh-paper" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95">🖐️</button>
+            </div>
+        </div>
+        
+        <div class="w-px h-10 bg-pink-200 rounded-full shrink-0"></div>
+        
+        <div class="flex flex-col items-center gap-1.5 shrink-0">
+            <span class="text-[9px] font-bold text-slate-400 tracking-wider">LEFT HAND</span>
+            <div class="flex gap-1.5">
+                <button id="btn-lh-rock" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95">✊</button>
+                <button id="btn-lh-scissors" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95">✌️</button>
+                <button id="btn-lh-paper" class="w-10 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95">🖐️</button>
+                <button id="btn-lh-auto" class="px-3 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-xs font-bold text-slate-700 shadow-sm transition-all active:scale-95">Auto</button>
+            </div>
+        </div>
+
+        <div class="w-px h-10 bg-pink-200 rounded-full shrink-0"></div>
+
+        <div class="flex flex-col items-center gap-1.5 shrink-0">
+            <span class="text-[9px] font-bold text-slate-400 tracking-wider">MOTION PRESETS</span>
+            <div class="flex gap-1.5 items-center">
+                <button id="btn-motion-stop" class="px-3 h-10 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 flex items-center justify-center text-xs font-bold text-slate-700 shadow-sm transition-all active:scale-95">Stop</button>
+                <div id="motion-buttons-container" class="flex gap-1.5 items-center"></div>
+                <label class="w-10 h-10 rounded-2xl bg-pink-500 hover:bg-pink-600 border border-pink-400 flex items-center justify-center text-xl font-bold text-white shadow-sm transition-all cursor-pointer active:scale-95" title="VRMAモーションを追加">
+                    +
+                    <input type="file" id="vrma-upload-preset" accept=".vrma" class="hidden" multiple />
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed bottom-32 right-6 w-36 h-48 bg-white/85 rounded-3xl overflow-hidden shadow-xl border-2 border-pink-200/60 z-10 transition-all duration-300 backdrop-blur-md flex flex-col" id="webcam-container" style="opacity: 0;">
+        <div class="relative w-full flex-1 bg-slate-100">
+            <video id="webcam-video" class="absolute inset-0 w-full h-full object-cover mirror-video opacity-0" playsinline autoplay></video>
+            <canvas id="tracking-canvas" class="absolute inset-0 w-full h-full object-cover mirror-video" width="640" height="480"></canvas>
+        </div>
+        <div class="bg-white/95 px-2 py-1.5 text-center text-[10px] font-medium text-pink-600 border-t border-pink-100 flex items-center justify-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+            <span>Full Body Tracking</span>
+        </div>
+    </div>
+
+    <div id="cheki-preview-modal" class="fixed top-6 right-6 z-50 hidden flex-col items-center p-3 bg-white/95 backdrop-blur-md border border-pink-300 rounded-3xl shadow-2xl transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-none">
+        <div class="flex items-center gap-2 mb-2 w-full px-1">
+            <svg class="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path></svg>
+            <span class="text-xs font-bold text-pink-600 tracking-wider">チェキ撮影・保存完了！</span>
+        </div>
+        <img id="cheki-preview-img" class="w-36 h-auto rounded-xl shadow-md border border-pink-200" src="" alt="チェキプレビュー">
+    </div>
+
+    <div id="cheki-editor-modal" class="fixed inset-0 flex items-center justify-center bg-slate-900/40 backdrop-blur-md z-50 hidden p-4">
+        <div class="bg-white border border-pink-200 p-6 rounded-3xl shadow-2xl max-w-md w-full flex flex-col items-center gap-4 relative overflow-hidden">
+            <div class="flex items-center justify-between w-full border-b border-pink-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    <span class="text-sm font-bold text-slate-800 tracking-wider">チェキに落書きしよう！</span>
+                </div>
+                <button id="close-editor-btn" class="text-slate-400 hover:text-slate-700 p-1 rounded-xl hover:bg-pink-50 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <div class="relative rounded-2xl overflow-hidden shadow-2xl border border-pink-200 bg-white max-h-[50vh] flex items-center justify-center">
+                <canvas id="cheki-draw-canvas" class="cursor-crosshair max-h-[48vh] w-auto h-auto object-contain"></canvas>
+            </div>
+
+            <div class="flex items-center justify-between w-full bg-pink-50/80 px-4 py-2.5 rounded-2xl border border-pink-200/60 gap-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-bold text-slate-500">色:</span>
+                    <button class="w-6 h-6 rounded-full bg-[#ff66a3] border-2 border-white shadow-sm pen-color-btn ring-2 ring-pink-500" data-color="#ff66a3"></button>
+                    <button class="w-6 h-6 rounded-full bg-[#ffffff] border-2 border-slate-300 shadow-sm pen-color-btn" data-color="#ffffff"></button>
+                    <button class="w-6 h-6 rounded-full bg-[#000000] border-2 border-slate-600 shadow-sm pen-color-btn" data-color="#000000"></button>
+                    <button class="w-6 h-6 rounded-full bg-[#ffd700] border-2 border-white shadow-sm pen-color-btn" data-color="#ffd700"></button>
+                    <button class="w-6 h-6 rounded-full bg-[#00bfff] border-2 border-white shadow-sm pen-color-btn" data-color="#00bfff"></button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-bold text-slate-500">太さ:</span>
+                    <button class="px-2.5 py-1 bg-pink-500 rounded-xl text-xs text-white pen-size-btn font-bold shadow-sm" data-size="4">細</button>
+                    <button class="px-2.5 py-1 bg-white hover:bg-pink-100 border border-pink-200 rounded-xl text-xs text-slate-700 pen-size-btn" data-size="12">太</button>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="undo-draw-btn" class="px-2.5 py-1 bg-white hover:bg-pink-100 border border-pink-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs text-slate-700 font-medium transition-colors shadow-sm" title="一つ戻る" disabled>戻る</button>
+                    <button id="redo-draw-btn" class="px-2.5 py-1 bg-white hover:bg-pink-100 border border-pink-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs text-slate-700 font-medium transition-colors shadow-sm" title="進む" disabled>進む</button>
+                    <button id="clear-draw-btn" class="px-2.5 py-1 bg-white hover:bg-pink-100 border border-pink-200 rounded-xl text-xs text-slate-700 font-medium transition-colors shadow-sm">消去</button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 w-full pt-1">
+                <button id="cancel-editor-btn" class="flex-1 py-3 bg-pink-50 hover:bg-pink-100 border border-pink-200 text-slate-700 rounded-2xl text-xs font-semibold transition-all">キャンセル</button>
+                <button id="save-cheki-btn" class="flex-1 py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-2xl text-xs font-semibold shadow-lg shadow-pink-500/20 transition-all flex items-center justify-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    保存してダウンロード
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="upload-overlay" class="fixed inset-0 flex items-center justify-center bg-pink-50/90 backdrop-blur-md z-50 transition-opacity duration-500 p-4">
+        <div class="bg-white border border-pink-200 p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center relative overflow-hidden">
+            <div class="absolute -right-12 -top-12 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -left-12 -bottom-12 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="mb-6 flex justify-center">
+                <div class="w-20 h-20 rounded-3xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-500 shadow-inner">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                </div>
+            </div>
+            
+            <h1 class="text-2xl font-bold mb-2 text-slate-800">VRM フェイストラッカー & ハンドポーズ</h1>
+            <p class="text-slate-500 text-sm mb-8 leading-relaxed">お手持ちの .vrm アバターファイルをアップロードしてください。Webカメラによるフルボディトラッキングと、手動の指先コントロールが可能です。</p>
+            
+            <label for="vrm-upload" class="cursor-pointer inline-flex items-center justify-center px-6 py-3.5 bg-pink-500 hover:bg-pink-600 active:scale-95 rounded-2xl text-white font-semibold transition-all shadow-xl shadow-pink-500/30 w-full text-sm">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                VRMファイルをアップロード
+                <input type="file" id="vrm-upload" accept=".vrm" class="hidden" />
+            </label>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="fixed inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm z-40 hidden">
+        <div class="w-14 h-14 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mb-4 shadow-lg shadow-pink-500/30"></div>
+        <p class="text-pink-600 font-semibold tracking-wide text-sm" id="loading-text">VRMを読み込み中...</p>
+    </div>
+
+    <div id="message-box" class="fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-2xl shadow-2xl z-50 transition-all duration-300 translate-y-[-150%] text-sm font-medium border backdrop-blur-md">
+        <span id="message-text">Error message here</span>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import Stats from 'three/addons/libs/stats.module.js';
+        import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+        import { createVRMAnimationClip, VRMAnimationLoaderPlugin, VRMLookAtQuaternionProxy } from '@pixiv/three-vrm-animation';
+        import { Face, Pose, Hand } from 'kalidokit';
+
+        let scene, camera, renderer, orbitControls, stats;
+        let currentVrm = null;
+        let currentRiggedFace = null;
+        let currentRiggedPose = null;
+        let currentRiggedRightHand = null;
+        let currentRiggedLeftHand = null;
+        let directionalLight, ambientLight;
+        let mixer = null;
+        let isVrmaPlaying = false;
+        let isTrackingEnabled = true;
+        let isHandTrackingEnabled = true;
+        const clock = new THREE.Clock();
+        
+        let leftHandMode = 'auto';
+        let rightHandMode = 'auto';
+        
+        let currentExpressionMode = 'auto';
+
+        let vrmaList = [];
+        let currentMotionId = null;
+
+        const expressionTargets = {
+            happy: 0,
+            angry: 0,
+            sad: 0,
+            relaxed: 0,
+            surprised: 0,
+            neutral: 0,
+            blinkLeft: 0,
+            blinkRight: 0,
+            aa: 0,
+            ee: 0,
+            ih: 0,
+            oh: 0,
+            ou: 0
+        };
+
+        let latestFace = null;
+        let latestPose = null;
+        let latestHands = [];
+
+        const canvas = document.getElementById('webgl-canvas');
+        const videoElement = document.getElementById('webcam-video');
+        const trackingCanvas = document.getElementById('tracking-canvas');
+        const trackingCtx = trackingCanvas ? trackingCanvas.getContext('2d') : null;
+        const vrmUpload = document.getElementById('vrm-upload');
+        const vrmSwitch = document.getElementById('vrm-switch');
+        const vrmaUpload = document.getElementById('vrma-upload');
+        const uploadOverlay = document.getElementById('upload-overlay');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        const webcamContainer = document.getElementById('webcam-container');
+        const settingsPanel = document.getElementById('settings-panel');
+        const handPosePanel = document.getElementById('hand-pose-panel');
+        const faceExpressionPanel = document.getElementById('face-expression-panel');
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+        const lightRange = document.getElementById('light-range');
+        const lightVal = document.getElementById('light-val');
+        const themeColor1Picker = document.getElementById('theme-color-1');
+        const themeColor2Picker = document.getElementById('theme-color-2');
+        const outlineColorPicker = document.getElementById('outline-color');
+        const vrmaStatusText = document.getElementById('vrma-status');
+        const vrmaStatusBadge = document.getElementById('vrma-status-badge');
+        const stopVrmaBtn = document.getElementById('stop-vrma-btn');
+        const toggleTrackingBtn = document.getElementById('toggle-tracking-btn');
+        const toggleHandTrackingBtn = document.getElementById('toggle-hand-tracking-btn');
+        
+        const toggleMenuBtn = document.getElementById('toggle-menu-btn');
+        const toggleMenuText = document.getElementById('toggle-menu-text');
+        const toggleFaceBtn = document.getElementById('toggle-face-btn');
+        const toggleFaceText = document.getElementById('toggle-face-text');
+        const toggleHandBtn = document.getElementById('toggle-hand-btn');
+        const toggleHandText = document.getElementById('toggle-hand-text');
+        const toggleCamPreviewBtn = document.getElementById('toggle-cam-preview-btn');
+        const toggleCamText = document.getElementById('toggle-cam-text');
+
+        const motionButtonsContainer = document.getElementById('motion-buttons-container');
+        const btnMotionStop = document.getElementById('btn-motion-stop');
+        const vrmaUploadPreset = document.getElementById('vrma-upload-preset');
+
+        const sceneImgUpload = document.getElementById('scene-img-upload');
+        const sceneImgLayer = document.getElementById('scene-img-layer');
+        const sceneImgList = document.getElementById('scene-img-list');
+        let sceneImages = [];
+
+        const updateSceneImgUI = () => {
+            sceneImgList.innerHTML = '';
+            if (sceneImages.length === 0) {
+                sceneImgList.innerHTML = '<span class="text-[10px] text-slate-400 text-center py-1">画像オブジェクトはありません</span>';
+                return;
+            }
+
+            sceneImages.forEach((item) => {
+                const row = document.createElement('div');
+                row.className = 'flex flex-col bg-pink-50/60 p-2.5 rounded-xl border border-pink-200/60 text-xs gap-2';
+                
+                const topRow = document.createElement('div');
+                topRow.className = 'flex items-center justify-between';
+                
+                const info = document.createElement('div');
+                info.className = 'flex items-center gap-1.5 truncate flex-1';
+                info.innerHTML = `<span class="w-2 h-2 rounded-full ${item.layer === 'bg' ? 'bg-sky-400' : 'bg-pink-500'}"></span><span class="truncate text-slate-700 font-medium">${item.name}</span>`;
+                
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-1';
+
+                const expandBtn = document.createElement('button');
+                expandBtn.className = 'px-1.5 py-0.5 bg-white hover:bg-pink-100 rounded-lg text-[10px] text-slate-600 border border-pink-200';
+                expandBtn.textContent = item.expanded ? '閉じる' : '調整';
+
+                const layerBtn = document.createElement('button');
+                layerBtn.className = 'px-1.5 py-0.5 bg-white hover:bg-pink-100 rounded-lg text-[10px] text-slate-600 border border-pink-200';
+                layerBtn.textContent = item.layer === 'bg' ? '後景' : '前景';
+                layerBtn.title = 'レイヤー切替';
+                layerBtn.onclick = () => {
+                    item.layer = item.layer === 'bg' ? 'fg' : 'bg';
+                    item.mesh.position.z = item.layer === 'bg' ? -2.2 : 0.5;
+                    item.mesh.renderOrder = item.layer === 'bg' ? 0 : 10;
+                    updateSceneImgUI();
+                };
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-[10px] border border-rose-200';
+                removeBtn.textContent = '削除';
+                removeBtn.onclick = () => {
+                    scene.remove(item.mesh);
+                    item.mesh.geometry.dispose();
+                    item.mesh.material.dispose();
+                    if (item.mesh.material.map) item.mesh.material.map.dispose();
+                    sceneImages = sceneImages.filter(i => i.id !== item.id);
+                    updateSceneImgUI();
+                };
+
+                actions.appendChild(expandBtn);
+                actions.appendChild(layerBtn);
+                actions.appendChild(removeBtn);
+                topRow.appendChild(info);
+                topRow.appendChild(actions);
+                row.appendChild(topRow);
+
+                const controlsDiv = document.createElement('div');
+                controlsDiv.className = `flex-col gap-2 pt-2 border-t border-pink-100 ${item.expanded ? 'flex' : 'hidden'}`;
+                
+                const createSliderLabel = (label, min, max, step, val, onChange) => {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'flex flex-col gap-0.5';
+                    const header = document.createElement('div');
+                    header.className = 'flex justify-between text-[10px] text-slate-600';
+                    header.innerHTML = `<span>${label}</span><span class="font-mono text-pink-600">${val.toFixed(2)}</span>`;
+                    const input = document.createElement('input');
+                    input.type = 'range';
+                    input.min = min; input.max = max; input.step = step; input.value = val;
+                    input.className = 'w-full accent-pink-500 cursor-pointer h-1 bg-pink-100 rounded-lg';
+                    input.oninput = (e) => {
+                        const newVal = parseFloat(e.target.value);
+                        header.querySelector('span:last-child').textContent = newVal.toFixed(2);
+                        onChange(newVal);
+                    };
+                    wrap.appendChild(header);
+                    wrap.appendChild(input);
+                    return wrap;
+                };
+
+                controlsDiv.appendChild(createSliderLabel('位置 X', -4.0, 4.0, 0.05, item.mesh.position.x, (val) => { item.mesh.position.x = val; }));
+                controlsDiv.appendChild(createSliderLabel('位置 Y', -1.0, 4.0, 0.05, item.mesh.position.y, (val) => { item.mesh.position.y = val; }));
+                controlsDiv.appendChild(createSliderLabel('位置 Z', -5.0, 3.0, 0.05, item.mesh.position.z, (val) => { item.mesh.position.z = val; }));
+                controlsDiv.appendChild(createSliderLabel('サイズ (スケール)', 0.1, 5.0, 0.05, item.mesh.scale.x, (val) => { item.mesh.scale.setScalar(val); }));
+
+                row.appendChild(controlsDiv);
+
+                expandBtn.onclick = () => {
+                    item.expanded = !item.expanded;
+                    updateSceneImgUI();
+                };
+
+                sceneImgList.appendChild(row);
+            });
+        };
+
+        sceneImgUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const layerType = sceneImgLayer.value;
+            const url = URL.createObjectURL(file);
+
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(url, (texture) => {
+                texture.colorSpace = THREE.SRGBColorSpace;
+                const imgAspect = texture.image.width / texture.image.height;
+                const baseHeight = 1.2;
+                const baseWidth = baseHeight * imgAspect;
+
+                const geometry = new THREE.PlaneGeometry(baseWidth, baseHeight);
+                const material = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
+
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                if (layerType === 'bg') {
+                    mesh.position.set((Math.random() - 0.5) * 1.5, 1.4 + (Math.random() - 0.5) * 0.5, -2.2);
+                    mesh.renderOrder = 0;
+                } else {
+                    mesh.position.set((Math.random() - 0.5) * 1.0, 1.3 + (Math.random() - 0.5) * 0.5, 0.5);
+                    mesh.renderOrder = 10;
+                }
+
+                scene.add(mesh);
+
+                const objData = {
+                    id: Date.now(),
+                    mesh: mesh,
+                    name: file.name,
+                    layer: layerType,
+                    url: url,
+                    expanded: false
+                };
+                sceneImages.push(objData);
+                updateSceneImgUI();
+                showMessage('画像オブジェクトを追加しました！', false);
+            });
+            e.target.value = '';
+        });
+
+        let isMenuVisible = true;
+        toggleMenuBtn.addEventListener('click', () => {
+            isMenuVisible = !isMenuVisible;
+            settingsPanel.classList.toggle('hidden', !isMenuVisible);
+            toggleMenuText.textContent = isMenuVisible ? 'メニュー非表示' : 'メニュー表示';
+        });
+
+        let isFaceVisible = true;
+        toggleFaceBtn.addEventListener('click', () => {
+            isFaceVisible = !isFaceVisible;
+            faceExpressionPanel.classList.toggle('hidden', !isFaceVisible);
+            toggleFaceText.textContent = isFaceVisible ? '表情非表示' : '表情表示';
+        });
+
+        let isHandVisible = true;
+        toggleHandBtn.addEventListener('click', () => {
+            isHandVisible = !isHandVisible;
+            handPosePanel.classList.toggle('hidden', !isHandVisible);
+            toggleHandText.textContent = isHandVisible ? 'ハンド非表示' : 'ハンド表示';
+        });
+
+        let isCamPreviewVisible = true;
+        toggleCamPreviewBtn.addEventListener('click', () => {
+            isCamPreviewVisible = !isCamPreviewVisible;
+            webcamContainer.classList.toggle('hidden', !isCamPreviewVisible);
+            toggleCamText.textContent = isCamPreviewVisible ? 'カメラ非表示' : 'カメラ表示';
+        });
+
+        const showMessage = (msg, isError = true) => {
+            messageText.textContent = msg;
+            messageBox.className = `fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-2xl shadow-2xl z-50 transition-all duration-300 text-white text-sm font-medium border backdrop-blur-md ${isError ? 'bg-rose-500/90 border-rose-300/50' : 'bg-emerald-500/90 border-emerald-300/50'}`;
+            messageBox.style.transform = 'translate(-50%, 0)';
+            setTimeout(() => { messageBox.style.transform = 'translate(-50%, -150%)'; }, 4000);
+        };
+
+        const updateHandButtonUI = () => {
+            const modes = ['auto', 'rock', 'scissors', 'paper'];
+            
+            modes.forEach(m => {
+                const lhBtn = document.getElementById(`btn-lh-${m}`);
+                const rhBtn = document.getElementById(`btn-rh-${m}`);
+                
+                if (leftHandMode === m) {
+                    lhBtn.classList.remove('bg-pink-50', 'hover:bg-pink-100', 'border-pink-200');
+                    lhBtn.classList.add('bg-pink-500', 'text-white', 'border-pink-400', 'scale-110');
+                } else {
+                    lhBtn.classList.remove('bg-pink-500', 'text-white', 'border-pink-400', 'scale-110');
+                    lhBtn.classList.add('bg-pink-50', 'hover:bg-pink-100', 'border-pink-200');
+                }
+                
+                if (rightHandMode === m) {
+                    rhBtn.classList.remove('bg-pink-50', 'hover:bg-pink-100', 'border-pink-200');
+                    rhBtn.classList.add('bg-pink-500', 'text-white', 'border-pink-400', 'scale-110');
+                } else {
+                    rhBtn.classList.remove('bg-pink-500', 'text-white', 'border-pink-400', 'scale-110');
+                    rhBtn.classList.add('bg-pink-50', 'hover:bg-pink-100', 'border-pink-200');
+                }
+            });
+        };
+
+        const updateExpressionButtonUI = () => {
+            const modes = ['auto', 'neutral', 'happy', 'angry', 'sad', 'relaxed', 'surprised'];
+            modes.forEach(m => {
+                const btn = document.getElementById(`btn-face-${m}`);
+                if (currentExpressionMode === m) {
+                    btn.classList.remove('bg-pink-50', 'hover:bg-pink-100', 'border-pink-200');
+                    btn.classList.add('bg-pink-500', 'text-white', 'border-pink-400', 'scale-110');
+                } else {
+                    btn.classList.remove('bg-pink-500', 'text-white', 'border-pink-400', 'scale-110');
+                    btn.classList.add('bg-pink-50', 'hover:bg-pink-100', 'border-pink-200');
+                }
+            });
+        };
+
+        const updateMotionPresetUI = () => {
+            if (!motionButtonsContainer) return;
+            motionButtonsContainer.innerHTML = '';
+            
+            vrmaList.forEach((motion, index) => {
+                const btn = document.createElement('button');
+                const isSelected = currentMotionId === motion.id;
+                
+                if (isSelected) {
+                    btn.className = 'px-3 h-10 rounded-2xl bg-pink-500 text-white border border-pink-400 scale-110 shadow-sm transition-all active:scale-95 text-xs font-bold truncate max-w-[80px]';
+                } else {
+                    btn.className = 'px-3 h-10 rounded-2xl bg-white hover:bg-pink-100 border border-pink-200 text-slate-700 shadow-sm transition-all active:scale-95 text-xs font-bold truncate max-w-[80px]';
+                }
+                
+                btn.textContent = `M${index + 1}`;
+                btn.title = motion.name;
+                
+                btn.onclick = () => {
+                    loadVRMA(motion.url, false, motion.id);
+                };
+                
+                motionButtonsContainer.appendChild(btn);
+            });
+
+            if (currentMotionId) {
+                btnMotionStop.classList.remove('bg-pink-50', 'text-slate-700', 'border-pink-200');
+                btnMotionStop.classList.add('bg-rose-500', 'text-white', 'border-rose-400', 'scale-110');
+            } else {
+                btnMotionStop.classList.remove('bg-rose-500', 'text-white', 'border-rose-400', 'scale-110');
+                btnMotionStop.classList.add('bg-pink-50', 'text-slate-700', 'border-pink-200');
+            }
+        };
+
+        if (vrmaUploadPreset) {
+            vrmaUploadPreset.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                files.forEach(file => {
+                    const url = URL.createObjectURL(file);
+                    const name = file.name.replace('.vrma', '');
+                    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+                    vrmaList.push({ id, name, url });
+                });
+                e.target.value = ''; 
+                updateMotionPresetUI();
+                
+                if (files.length > 0 && !currentMotionId) {
+                    const latest = vrmaList[vrmaList.length - 1];
+                    loadVRMA(latest.url, false, latest.id);
+                }
+            });
+        }
+
+        if (btnMotionStop) {
+            btnMotionStop.addEventListener('click', () => stopVRMA());
+        }
+
+        const setExpressionMode = (mode) => {
+            currentExpressionMode = mode;
+            updateExpressionButtonUI();
+            
+            expressionTargets.happy = 0;
+            expressionTargets.angry = 0;
+            expressionTargets.sad = 0;
+            expressionTargets.relaxed = 0;
+            expressionTargets.surprised = 0;
+
+            if (mode !== 'auto' && mode !== 'neutral') {
+                expressionTargets[mode] = 1.0;
+            }
+        };
+
+        ['auto', 'rock', 'scissors', 'paper'].forEach(m => {
+            document.getElementById(`btn-lh-${m}`).addEventListener('click', () => {
+                leftHandMode = m;
+                updateHandButtonUI();
+            });
+            document.getElementById(`btn-rh-${m}`).addEventListener('click', () => {
+                rightHandMode = m;
+                updateHandButtonUI();
+            });
+        });
+        updateHandButtonUI(); 
+
+        ['auto', 'neutral', 'happy', 'angry', 'sad', 'relaxed', 'surprised'].forEach(m => {
+            document.getElementById(`btn-face-${m}`).addEventListener('click', () => {
+                setExpressionMode(m);
+            });
+        });
+        updateExpressionButtonUI(); 
+
+        const initThreeJS = () => {
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 1.4, 3.5);
+
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.toneMapping = THREE.NoToneMapping;
+            renderer.toneMappingExposure = 1.0;
+
+            stats = new Stats();
+            stats.dom.style.position = 'fixed';
+            stats.dom.style.bottom = '16px';
+            stats.dom.style.top = 'auto';
+            stats.dom.style.left = '16px';
+            stats.dom.style.zIndex = '50';
+            document.body.appendChild(stats.dom);
+
+            directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(1, 2, 1.5).normalize();
+            scene.add(directionalLight);
+
+            ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+            scene.add(ambientLight);
+
+            let stageMaterials = { color1: null, color2: null, floor: null };
+            
+            const buildStage = () => {
+                const stageGroup = new THREE.Group();
+                scene.add(stageGroup);
+
+                stageMaterials.color1 = new THREE.MeshBasicMaterial({ color: themeColor1Picker.value });
+                stageMaterials.color2 = new THREE.MeshBasicMaterial({ color: themeColor2Picker.value });
+                const matWhite = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const matPillar = new THREE.MeshBasicMaterial({ color: 0xc8a2c8 });
+
+                const canvasTexElem = document.createElement('canvas');
+                canvasTexElem.width = 512; canvasTexElem.height = 512;
+                const ctx = canvasTexElem.getContext('2d');
+                const updateFloorTexture = () => {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, 512, 512);
+                    ctx.fillStyle = themeColor1Picker.value;
+                    ctx.globalAlpha = 0.15;
+                    ctx.fillRect(0, 0, 256, 256);
+                    ctx.fillRect(256, 256, 256, 256);
+                    ctx.globalAlpha = 1.0;
+                    if(stageMaterials.floor && stageMaterials.floor.map) {
+                        stageMaterials.floor.map.needsUpdate = true;
+                    }
+                };
+                updateFloorTexture();
+                const floorTex = new THREE.CanvasTexture(canvasTexElem);
+                floorTex.wrapS = THREE.RepeatWrapping; floorTex.wrapT = THREE.RepeatWrapping;
+                floorTex.repeat.set(20, 20);
+                stageMaterials.floor = new THREE.MeshBasicMaterial({ map: floorTex });
+                
+                const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), stageMaterials.floor);
+                floor.rotation.x = -Math.PI / 2;
+                stageGroup.add(floor);
+
+                const screen = new THREE.Mesh(new THREE.PlaneGeometry(6, 3.5), stageMaterials.color1);
+                screen.position.set(0, 1.75, -3.5);
+                stageGroup.add(screen);
+
+                const arch = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.25, 0.25), stageMaterials.color2);
+                arch.position.set(0, 3.6, -3.4);
+                stageGroup.add(arch);
+
+                const pillarGeo = new THREE.CylinderGeometry(0.15, 0.15, 3.6, 12);
+                const sphereGeo = new THREE.SphereGeometry(1, 16, 16);
+                
+                const starShape = new THREE.Shape();
+                for (let i = 0; i < 10; i++) {
+                    const angle = (i * Math.PI) / 5;
+                    const r = i % 2 === 0 ? 1 : 0.4;
+                    if (i === 0) starShape.moveTo(Math.sin(angle) * r, Math.cos(angle) * r);
+                    else starShape.lineTo(Math.sin(angle) * r, Math.cos(angle) * r);
+                }
+                const starGeo = new THREE.ExtrudeGeometry(starShape, { depth: 0.2, bevelEnabled: false });
+
+                const heartShape = new THREE.Shape();
+                const hx = 0, hy = 0;
+                heartShape.moveTo( hx + 5, hy + 5 );
+                heartShape.bezierCurveTo( hx + 5, hy + 5, hx + 4, hy, hx, hy );
+                heartShape.bezierCurveTo( hx - 6, hy, hx - 6, hy + 7,hx - 6, hy + 7 );
+                heartShape.bezierCurveTo( hx - 6, hy + 11, hx - 3, hy + 15.4, hx + 5, hy + 19 );
+                heartShape.bezierCurveTo( hx + 12, hy + 15.4, hx + 16, hy + 11, hx + 16, hy + 7 );
+                heartShape.bezierCurveTo( hx + 16, hy + 7, hx + 16, hy, hx + 10, hy );
+                heartShape.bezierCurveTo( hx + 7, hy, hx + 5, hy + 5, hx + 5, hy + 5 );
+                const heartGeo = new THREE.ExtrudeGeometry( heartShape, { depth: 1, bevelEnabled: false } );
+                heartGeo.scale(0.06, -0.06, 0.06);
+                heartGeo.center();
+
+                const createPillar = (x, isLeft) => {
+                    const p = new THREE.Mesh(pillarGeo, matPillar);
+                    p.position.set(x, 1.8, -3);
+                    stageGroup.add(p);
+
+                    for(let i=0; i<3; i++) {
+                        const isColor1 = i % 2 === (isLeft ? 0 : 1);
+                        const orb = new THREE.Mesh(sphereGeo, isColor1 ? stageMaterials.color1 : stageMaterials.color2);
+                        orb.scale.set(0.25, 0.25, 0.25);
+                        orb.position.set(x, 0.8 + i * 0.9, -2.8);
+                        stageGroup.add(orb);
+                    }
+
+                    if (isLeft) {
+                        const heart = new THREE.Mesh(heartGeo, stageMaterials.color1);
+                        heart.position.set(x - 0.7, 1.7, -2.7);
+                        heart.rotation.z = Math.PI / 8;
+                        stageGroup.add(heart);
+                    } else {
+                        const star = new THREE.Mesh(starGeo, stageMaterials.color2);
+                        star.position.set(x + 0.7, 1.7, -2.7);
+                        star.scale.set(0.4, 0.4, 0.4);
+                        star.rotation.z = -Math.PI / 8;
+                        stageGroup.add(star);
+                    }
+                };
+                createPillar(-3, true);
+                createPillar(3, false);
+
+                const platGeo = new THREE.CylinderGeometry(1.5, 1.5, 0.05, 32);
+                const plat = new THREE.Mesh(platGeo, stageMaterials.color1);
+                plat.position.set(0, 0.025, -1);
+                stageGroup.add(plat);
+
+                const cloudGeo = new THREE.SphereGeometry(1, 12, 12);
+                const createCloud = (x, y, z, scale) => {
+                    const group = new THREE.Group();
+                    const positions = [ [0,0,0], [0.6, -0.2, 0.2], [-0.5, -0.3, -0.2], [0.2, 0.4, 0] ];
+                    const scales = [1, 0.7, 0.8, 0.6];
+                    for(let i=0; i<positions.length; i++) {
+                        const c = new THREE.Mesh(cloudGeo, matWhite);
+                        c.position.set(...positions[i]);
+                        c.scale.setScalar(scales[i]);
+                        group.add(c);
+                    }
+                    group.position.set(x, y, z);
+                    group.scale.setScalar(scale);
+                    stageGroup.add(group);
+                };
+                createCloud(-3.5, 0.3, -1.5, 0.8);
+                createCloud(3.5, 0.3, -1.8, 0.9);
+                createCloud(-1, 0.2, -4, 1.2);
+                createCloud(1.5, 0.2, -4.2, 1.4);
+
+                stageGroup.userData.updateColors = () => {
+                    const c1 = themeColor1Picker.value;
+                    const c2 = themeColor2Picker.value;
+                    stageMaterials.color1.color.set(c1);
+                    stageMaterials.color2.color.set(c2);
+                    updateFloorTexture();
+                    scene.background = new THREE.Color(c1).lerp(new THREE.Color(0xffffff), 0.95); 
+                };
+                stageGroup.userData.updateColors(); 
+            };
+
+            buildStage();
+
+            orbitControls = new OrbitControls(camera, renderer.domElement);
+            orbitControls.enableDamping = true;
+            orbitControls.dampingFactor = 0.05;
+            orbitControls.screenSpacePanning = true;
+            orbitControls.target.set(0, 1.3, 0);
+            orbitControls.update();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            lightRange.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                lightVal.textContent = val.toFixed(1);
+                
+                ambientLight.intensity = val;
+                directionalLight.intensity = val;
+
+                if (currentVrm) {
+                    currentVrm.scene.traverse((obj) => {
+                        if (obj.isMesh && obj.material) {
+                            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                            mats.forEach(mat => {
+                                if (mat.color) {
+                                    mat.emissive = mat.emissive || new THREE.Color(0x000000);
+                                    mat.emissiveIntensity = Math.max(0, (1.0 - val) * 0.25);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+            const updateStageTheme = () => {
+                const stage = scene.children.find(c => c.userData && c.userData.updateColors);
+                if (stage) {
+                    stage.userData.updateColors();
+                }
+            };
+            themeColor1Picker.addEventListener('input', updateStageTheme);
+            themeColor2Picker.addEventListener('input', updateStageTheme);
+
+            const updateOutlineColor = () => {
+                if (!currentVrm) return;
+                const color = new THREE.Color(outlineColorPicker.value);
+                currentVrm.scene.traverse((obj) => {
+                    if (obj.isMesh && obj.material) {
+                        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                        mats.forEach(mat => {
+                            if (mat.isMToonMaterial || mat.outlineColorFactor !== undefined) {
+                                mat.outlineColorFactor = new THREE.Color(color);
+                            }
+                        });
+                    }
+                });
+            };
+            outlineColorPicker.addEventListener('input', updateOutlineColor);
+        };
+
+        const loadVRM = (url, shouldRevokeObjectURL = false) => {
+            uploadOverlay.style.display = 'none';
+            loadingOverlay.style.display = 'flex';
+            loadingText.textContent = 'VRMモデルを読み込み中...';
+
+            const loader = new GLTFLoader();
+            loader.crossOrigin = 'anonymous';
+
+            loader.register((parser) => new VRMLoaderPlugin(parser));
+            loader.register((parser) => new VRMAnimationLoaderPlugin(parser));
+
+            loader.load(
+                url,
+                (gltf) => {
+                    const vrm = gltf.userData.vrm;
+                    if (!vrm) {
+                        showMessage('有効なVRMモデルファイルではありません。');
+                        loadingOverlay.style.display = 'none';
+                        uploadOverlay.style.display = 'flex';
+                        if (shouldRevokeObjectURL) URL.revokeObjectURL(url);
+                        return;
+                    }
+
+                    if (currentVrm) {
+                        scene.remove(currentVrm.scene);
+                        VRMUtils.deepDispose(currentVrm.scene);
+                    }
+
+                    if (mixer) {
+                        mixer.stopAllAction();
+                        mixer = null;
+                    }
+                    isVrmaPlaying = false;
+
+                    currentVrm = vrm;
+                    scene.add(vrm.scene);
+                    vrm.scene.rotation.y = 0;
+
+                    vrm.scene.traverse((obj) => {
+                        if(obj.isMesh) obj.frustumCulled = false;
+                    });
+
+                    const lookAtQuatProxy = new VRMLookAtQuaternionProxy(vrm.lookAt);
+                    lookAtQuatProxy.name = 'lookAtQuaternionProxy';
+                    vrm.scene.add(lookAtQuatProxy);
+
+                    vrm.update(0);
+                    
+                    setExpressionMode(currentExpressionMode);
+
+                    const outlineColor = new THREE.Color(outlineColorPicker.value);
+                    currentVrm.scene.traverse((obj) => {
+                        if (obj.isMesh && obj.material) {
+                            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                            mats.forEach(mat => {
+                                if (mat.isMToonMaterial || mat.outlineColorFactor !== undefined) {
+                                    mat.outlineColorFactor = new THREE.Color(outlineColor);
+                                }
+                            });
+                        }
+                    });
+
+                    loadingOverlay.style.display = 'none';
+                    settingsPanel.classList.remove('hidden');
+                    webcamContainer.style.opacity = '1';
+                    initTracking();
+                    showMessage('VRMモデルのロードに成功しました！', false);
+                    
+                    if (shouldRevokeObjectURL) URL.revokeObjectURL(url);
+                },
+                (progress) => {},
+                (error) => {
+                    console.error(error);
+                    showMessage('VRMのロード中にエラーが発生しました。');
+                    loadingOverlay.style.display = 'none';
+                    uploadOverlay.style.display = 'flex';
+                    if (shouldRevokeObjectURL) URL.revokeObjectURL(url);
+                }
+            );
+        };
+
+        const loadVRMA = (url, shouldRevokeObjectURL = false, motionId = null) => {
+            if (!currentVrm) {
+                showMessage('先にVRMモデルを読み込んでください。');
+                if (shouldRevokeObjectURL) URL.revokeObjectURL(url);
+                return;
+            }
+
+            loadingOverlay.style.display = 'flex';
+            loadingText.textContent = 'VRMAアニメーションを読み込み中...';
+
+            const loader = new GLTFLoader();
+            loader.crossOrigin = 'anonymous';
+            loader.register((parser) => new VRMLoaderPlugin(parser));
+            loader.register((parser) => new VRMAnimationLoaderPlugin(parser));
+
+            loader.load(
+                url,
+                (gltf) => {
+                    const vrmAnimation = gltf.userData.vrmAnimations?.[0] || gltf.userData.vrmAnimation;
+                    if (!vrmAnimation) {
+                        showMessage('有効なVRMAアニメーションデータが見つかりませんでした。');
+                        loadingOverlay.style.display = 'none';
+                        if (shouldRevokeObjectURL) URL.revokeObjectURL(url);
+                        return;
+                    }
+
+                    if (mixer) {
+                        mixer.stopAllAction();
+                        mixer = null;
+                    }
+
+                    const clip = createVRMAnimationClip(vrmAnimation, currentVrm);
+                    mixer = new THREE.AnimationMixer(currentVrm.scene);
+                    const action = mixer.clipAction(clip);
+                    action.setLoop(THREE.LoopRepeat);
+                    action.play();
+
+                    isVrmaPlaying = true;
+                    currentMotionId = motionId;
+                    updateMotionPresetUI();
+                    
+                    vrmaStatusText.textContent = 'VRMA再生中';
+                    vrmaStatusBadge.textContent = 'アニメーション中';
+                    stopVrmaBtn.classList.remove('hidden');
+
+                    loadingOverlay.style.display = 'none';
+                    showMessage('VRMAアニメーションを適用しました！', false);
+                    
+                    if (shouldRevokeObjectURL) URL.revokeObjectURL(url);
+                },
+                (progress) => {},
+                (error) => {
+                    console.error(error);
+                    showMessage('VRMAファイルのロード中にエラーが発生しました。');
+                    loadingOverlay.style.display = 'none';
+                    if (shouldRevokeObjectURL) URL.revokeObjectURL(url);
+                }
+            );
+        };
+
+        const stopVRMA = () => {
+            if (mixer) {
+                mixer.stopAllAction();
+                mixer = null;
+            }
+            isVrmaPlaying = false;
+            currentMotionId = null;
+            updateMotionPresetUI();
+            
+            vrmaStatusText.textContent = 'カメラ追従中';
+            vrmaStatusBadge.textContent = 'トラッキング中';
+            stopVrmaBtn.classList.add('hidden');
+            showMessage('アニメーションを停止し、カメラ追従に戻りました。', false);
+        };
+
+        vrmUpload.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                const url = URL.createObjectURL(e.target.files[0]);
+                loadVRM(url, true);
+            }
+        });
+        vrmSwitch.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                const url = URL.createObjectURL(e.target.files[0]);
+                loadVRM(url, true);
+            }
+        });
+        vrmaUpload.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                const file = e.target.files[0];
+                const url = URL.createObjectURL(file);
+                const name = file.name.replace('.vrma', '');
+                const id = Date.now() + Math.random().toString(36).substr(2, 9);
+                vrmaList.push({ id, name, url });
+                updateMotionPresetUI();
+                loadVRMA(url, false, id);
+            }
+            e.target.value = '';
+        });
+        stopVrmaBtn.addEventListener('click', stopVRMA);
+
+        toggleTrackingBtn.addEventListener('click', () => {
+            isTrackingEnabled = !isTrackingEnabled;
+            toggleTrackingBtn.textContent = isTrackingEnabled ? '有効' : '無効';
+            toggleTrackingBtn.className = isTrackingEnabled 
+                ? 'px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-medium transition-colors shadow-sm'
+                : 'px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-medium transition-colors shadow-sm';
+            showMessage(isTrackingEnabled ? 'フェイストラッキングを有効化しました' : 'フェイストラッキングを一時停止しました', false);
+        });
+
+        toggleHandTrackingBtn.addEventListener('click', () => {
+            isHandTrackingEnabled = !isHandTrackingEnabled;
+            toggleHandTrackingBtn.textContent = isHandTrackingEnabled ? '有効' : '無効';
+            toggleHandTrackingBtn.className = isHandTrackingEnabled 
+                ? 'px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-medium transition-colors shadow-sm'
+                : 'px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-medium transition-colors shadow-sm';
+            showMessage(isHandTrackingEnabled ? '腕・ハンドトラッキングを有効化しました' : '腕・ハンドトラッキングを一時停止しました', false);
+        });
+
+        const rigRotation = (boneName, rotation = { x: 0, y: 0, z: 0 }, dampener = 1, lerpAmount = 0.3) => {
+            if (!currentVrm || !rotation) return;
+            const node = currentVrm.humanoid.getNormalizedBoneNode(boneName);
+            if (!node) return;
+
+            let euler = new THREE.Euler(
+                -rotation.x * dampener,
+                rotation.y * dampener,
+                -rotation.z * dampener,
+                "XYZ"
+            );
+            let quaternion = new THREE.Quaternion().setFromEuler(euler);
+            node.quaternion.slerp(quaternion, lerpAmount);
+        };
+
+        const rigFace = (riggedFace) => {
+            if (!currentVrm) return;
+            rigRotation("neck", riggedFace.head, 0.7, 0.3);
+            rigRotation("head", riggedFace.head, 0.7, 0.3);
+
+            expressionTargets.blinkLeft = 1 - riggedFace.eye.l;
+            expressionTargets.blinkRight = 1 - riggedFace.eye.r;
+            expressionTargets.aa = riggedFace.mouth.shape.A;
+            expressionTargets.ee = riggedFace.mouth.shape.E;
+            expressionTargets.ih = riggedFace.mouth.shape.I;
+            expressionTargets.oh = riggedFace.mouth.shape.O;
+            expressionTargets.ou = riggedFace.mouth.shape.U;
+
+            if (currentExpressionMode === 'auto') {
+                const smileVal = riggedFace.mouth.shape.smile || 0;
+                expressionTargets.happy = Math.max(0, smileVal);
+            }
+        };
+
+        const rigPose = (pose) => {
+            if (!currentVrm || !pose) return;
+            rigRotation("spine", pose.Spine, 1, 0.3);
+            rigRotation("chest", pose.Chest, 1, 0.3);
+            rigRotation("upperChest", pose.UpperChest, 1, 0.3);
+
+            rigRotation("rightShoulder", pose.RightShoulder, 1, 0.3);
+            rigRotation("rightUpperArm", pose.RightUpperArm, 1.2, 0.3);
+            rigRotation("rightLowerArm", pose.RightLowerArm, 1.2, 0.3);
+            
+            rigRotation("leftShoulder", pose.LeftShoulder, 1, 0.3);
+            rigRotation("leftUpperArm", pose.LeftUpperArm, 1.2, 0.3);
+            rigRotation("leftLowerArm", pose.LeftLowerArm, 1.2, 0.3);
+        };
+
+        const rigHands = (rightHand, leftHand) => {
+            if (!currentVrm) return;
+
+            if (rightHand) {
+                if (rightHand.RightWrist) rigRotation("rightWrist", rightHand.RightWrist, 1, 0.4);
+                
+                const fingers = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'];
+                fingers.forEach(f => {
+                    if (rightHand[`Right${f}Proximal`]) rigRotation(`right${f}Proximal`, rightHand[`Right${f}Proximal`], 1, 0.4);
+                    if (rightHand[`Right${f}Intermediate`]) rigRotation(`right${f}Intermediate`, rightHand[`Right${f}Intermediate`], 1, 0.4);
+                    if (rightHand[`Right${f}Distal`]) rigRotation(`right${f}Distal`, rightHand[`Right${f}Distal`], 1, 0.4);
+                });
+            }
+
+            if (leftHand) {
+                if (leftHand.LeftWrist) rigRotation("leftWrist", leftHand.LeftWrist, 1, 0.4);
+                
+                const fingers = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'];
+                fingers.forEach(f => {
+                    if (leftHand[`Left${f}Proximal`]) rigRotation(`left${f}Proximal`, leftHand[`Left${f}Proximal`], 1, 0.4);
+                    if (leftHand[`Left${f}Intermediate`]) rigRotation(`left${f}Intermediate`, leftHand[`Left${f}Intermediate`], 1, 0.4);
+                    if (leftHand[`Left${f}Distal`]) rigRotation(`left${f}Distal`, leftHand[`Left${f}Distal`], 1, 0.4);
+                });
+            }
+        };
+
+        const getHandPose = (side, poseName) => {
+            const isRight = side === 'Right';
+            
+            const curl = { x: 0, y: 0, z: isRight ? -1.5 : 1.5 }; 
+            const thumbCurl = { x: 0, y: isRight ? -0.8 : 0.8, z: isRight ? -0.8 : 0.8 }; 
+            const straight = { x: 0, y: 0, z: 0 };
+            
+            let pose = {};
+            const fingers = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'];
+            
+            fingers.forEach(f => {
+                let isCurl = false;
+                if (poseName === 'rock') {
+                    isCurl = true;
+                } else if (poseName === 'scissors') {
+                    isCurl = (f === 'Ring' || f === 'Little' || f === 'Thumb');
+                } else if (poseName === 'paper') {
+                    isCurl = false;
+                }
+                
+                const val = isCurl ? (f === 'Thumb' ? thumbCurl : curl) : straight;
+                
+                pose[`${side}${f}Proximal`] = val;
+                pose[`${side}${f}Intermediate`] = val;
+                pose[`${side}${f}Distal`] = val;
+            });
+            
+            return pose;
+        };
+
+        const processHandLandmarks = (multiHandLandmarks, multiHandedness) => {
+            let rightHand = null;
+            let leftHand = null;
+            
+            for (let i = 0; i < multiHandLandmarks.length; i++) {
+                const classification = multiHandedness[i].label;
+                const landmarks = multiHandLandmarks[i];
+                
+                if (classification === 'Right') { 
+                    rightHand = Hand.solve(landmarks, "Right");
+                } else { 
+                    leftHand = Hand.solve(landmarks, "Left");
+                }
+            }
+            return { rightHand, leftHand };
+        };
+
+        let isTrackingInitialized = false;
+        const initTracking = () => {
+            if(isTrackingInitialized) return;
+            isTrackingInitialized = true;
+            
+            showMessage('Webカメラによるトラッキングを初期化中...', false);
+
+            const faceMesh = new window.FaceMesh({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/${file}`
+            });
+            faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+            faceMesh.onResults((results) => {
+                if (!isTrackingEnabled) { currentRiggedFace = null; latestFace = null; return; }
+                if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                    currentRiggedFace = Face.solve(results.multiFaceLandmarks[0], { runtime: "mediapipe", video: videoElement });
+                    latestFace = results.multiFaceLandmarks[0];
+                } else {
+                    currentRiggedFace = null;
+                    latestFace = null;
+                }
+            });
+
+            const poseModel = new window.Pose({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
+            });
+            poseModel.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+            poseModel.onResults((results) => {
+                if (!isHandTrackingEnabled) { currentRiggedPose = null; latestPose = null; return; }
+                if (results.poseLandmarks && results.poseWorldLandmarks) {
+                    currentRiggedPose = Pose.solve(results.poseWorldLandmarks, results.poseLandmarks, { runtime: "mediapipe", video: videoElement });
+                    latestPose = results.poseLandmarks;
+                } else {
+                    currentRiggedPose = null;
+                    latestPose = null;
+                }
+            });
+
+            const hands = new window.Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
+            });
+            hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+            hands.onResults((results) => {
+                if (!isHandTrackingEnabled) { currentRiggedRightHand = null; currentRiggedLeftHand = null; latestHands = []; return; }
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    const riggedHands = processHandLandmarks(results.multiHandLandmarks, results.multiHandedness);
+                    currentRiggedRightHand = riggedHands.rightHand;
+                    currentRiggedLeftHand = riggedHands.leftHand;
+                    latestHands = results.multiHandLandmarks;
+                } else {
+                    currentRiggedRightHand = null;
+                    currentRiggedLeftHand = null;
+                    latestHands = [];
+                }
+            });
+
+            const cameraObj = new window.Camera(videoElement, {
+                onFrame: async () => {
+                    await faceMesh.send({ image: videoElement });
+                    if (isHandTrackingEnabled) {
+                        await poseModel.send({ image: videoElement });
+                        await hands.send({ image: videoElement });
+                    }
+                },
+                width: 640,
+                height: 480
+            });
+
+            cameraObj.start()
+                .then(() => {
+                    webcamContainer.style.opacity = '1';
+                    showMessage('トラッキングが開始されました！', false);
+                })
+                .catch(err => {
+                    console.error(err);
+                    showMessage('Webカメラへのアクセスが拒否されたか、デバイスが見つかりません。');
+                });
+        };
+
+        const drawTrackingDots = () => {
+            if (!trackingCtx) return;
+            trackingCtx.clearRect(0, 0, trackingCanvas.width, trackingCanvas.height);
+
+            const w = trackingCanvas.width;
+            const h = trackingCanvas.height;
+
+            if (isTrackingEnabled && latestFace) {
+                trackingCtx.fillStyle = '#ec4899'; 
+                latestFace.forEach(pt => {
+                    trackingCtx.beginPath();
+                    trackingCtx.arc(pt.x * w, pt.y * h, 1.5, 0, 2 * Math.PI);
+                    trackingCtx.fill();
+                });
+            }
+
+            if (isHandTrackingEnabled && latestPose) {
+                trackingCtx.fillStyle = '#3b82f6'; 
+                latestPose.forEach(pt => {
+                    trackingCtx.beginPath();
+                    trackingCtx.arc(pt.x * w, pt.y * h, 2.5, 0, 2 * Math.PI);
+                    trackingCtx.fill();
+                });
+            }
+
+            if (isHandTrackingEnabled && latestHands.length > 0) {
+                trackingCtx.fillStyle = '#10b981'; 
+                latestHands.forEach(hand => {
+                    hand.forEach(pt => {
+                        trackingCtx.beginPath();
+                        trackingCtx.arc(pt.x * w, pt.y * h, 2.5, 0, 2 * Math.PI);
+                        trackingCtx.fill();
+                    });
+                });
+            }
+        };
+
+        const animate = () => {
+            requestAnimationFrame(animate);
+            stats.update(); 
+
+            drawTrackingDots();
+
+            const delta = clock.getDelta();
+
+            if (currentVrm) {
+                if (isVrmaPlaying && mixer) {
+                    mixer.update(delta);
+                }
+                
+                // VRMA再生中もフェイストラッキング(顔の向き・表情)は上書きして適用
+                if (isTrackingEnabled && currentRiggedFace) {
+                    rigFace(currentRiggedFace);
+                }
+                
+                // ハンド・ボディトラッキングはVRMAが再生されていない時のみ適用
+                if (!isVrmaPlaying || !mixer) {
+                    if (isHandTrackingEnabled && currentRiggedPose) {
+                        rigPose(currentRiggedPose);
+                    }
+
+                    let renderRightHand = currentRiggedRightHand;
+                    let renderLeftHand = currentRiggedLeftHand;
+
+                    if (rightHandMode !== 'auto') {
+                        renderRightHand = getHandPose('Right', rightHandMode);
+                        if (isHandTrackingEnabled && currentRiggedRightHand && currentRiggedRightHand.RightWrist) {
+                            renderRightHand.RightWrist = currentRiggedRightHand.RightWrist;
+                        }
+                    } else if (!isHandTrackingEnabled) {
+                        renderRightHand = null;
+                    }
+
+                    if (leftHandMode !== 'auto') {
+                        renderLeftHand = getHandPose('Left', leftHandMode);
+                        if (isHandTrackingEnabled && currentRiggedLeftHand && currentRiggedLeftHand.LeftWrist) {
+                            renderLeftHand.LeftWrist = currentRiggedLeftHand.LeftWrist;
+                        }
+                    } else if (!isHandTrackingEnabled) {
+                        renderLeftHand = null;
+                    }
+
+                    if (renderRightHand || renderLeftHand) {
+                        rigHands(renderRightHand, renderLeftHand);
+                    }
+                }
+
+                if (currentVrm.expressionManager) {
+                    const expressions = currentVrm.expressionManager;
+                    const lerpFactor = 0.25;
+                    Object.keys(expressionTargets).forEach(key => {
+                        const currentVal = expressions.getValue(key) || 0;
+                        const targetVal = expressionTargets[key];
+                        const newVal = THREE.MathUtils.lerp(currentVal, targetVal, lerpFactor);
+                        expressions.setValue(key, newVal);
+                    });
+                }
+
+                currentVrm.update(delta);
+            }
+
+            orbitControls.update();
+            renderer.render(scene, camera);
+        };
+
+        const takePhotoBtn = document.getElementById('take-photo-btn');
+        const chekiModal = document.getElementById('cheki-preview-modal');
+        const chekiPreviewImg = document.getElementById('cheki-preview-img');
+        const chekiEditorModal = document.getElementById('cheki-editor-modal');
+        const chekiDrawCanvas = document.getElementById('cheki-draw-canvas');
+        const chekiCtx = chekiDrawCanvas ? chekiDrawCanvas.getContext('2d') : null;
+        const closeEditorBtn = document.getElementById('close-editor-btn');
+        const cancelEditorBtn = document.getElementById('cancel-editor-btn');
+        const saveChekiBtn = document.getElementById('save-cheki-btn');
+        const clearDrawBtn = document.getElementById('clear-draw-btn');
+        
+        let basePolaroidDataUrl = '';
+        let isDrawing = false;
+        let currentPenColor = '#ff66a3';
+        let currentPenSize = 4;
+        let chekiTimeout = null;
+
+        let historyStack = [];
+        let redoStack = [];
+
+        let lastX = 0;
+        let lastY = 0;
+
+        const saveState = () => {
+            if (!chekiCtx) return;
+            historyStack.push(chekiCtx.getImageData(0, 0, chekiDrawCanvas.width, chekiDrawCanvas.height));
+            redoStack = [];
+            updateUndoRedoButtons();
+        };
+
+        const updateUndoRedoButtons = () => {
+            const undoBtn = document.getElementById('undo-draw-btn');
+            const redoBtn = document.getElementById('redo-draw-btn');
+            if (undoBtn) undoBtn.disabled = historyStack.length <= 1;
+            if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+        };
+
+        const undoDraw = () => {
+            if (historyStack.length > 1) {
+                const currentState = historyStack.pop();
+                redoStack.push(currentState);
+                const prevState = historyStack[historyStack.length - 1];
+                chekiCtx.putImageData(prevState, 0, 0);
+                updateUndoRedoButtons();
+            }
+        };
+
+        const redoDraw = () => {
+            if (redoStack.length > 0) {
+                const nextState = redoStack.pop();
+                historyStack.push(nextState);
+                chekiCtx.putImageData(nextState, 0, 0);
+                updateUndoRedoButtons();
+            }
+        };
+
+        document.getElementById('undo-draw-btn').addEventListener('click', undoDraw);
+        document.getElementById('redo-draw-btn').addEventListener('click', redoDraw);
+
+        document.querySelectorAll('.pen-color-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.pen-color-btn').forEach(b => b.classList.remove('ring-2', 'ring-pink-500'));
+                e.target.classList.add('ring-2', 'ring-pink-500');
+                currentPenColor = e.target.getAttribute('data-color');
+            });
+        });
+
+        document.querySelectorAll('.pen-size-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.pen-size-btn').forEach(b => {
+                    b.classList.remove('bg-pink-500', 'text-white', 'font-bold');
+                    b.classList.add('bg-white', 'hover:bg-pink-100', 'border', 'border-pink-200', 'text-slate-700');
+                });
+                e.target.classList.remove('bg-white', 'hover:bg-pink-100', 'border', 'border-pink-200', 'text-slate-700');
+                e.target.classList.add('bg-pink-500', 'text-white', 'font-bold');
+                currentPenSize = parseInt(e.target.getAttribute('data-size'));
+            });
+        });
+
+        const loadBasePolaroidToCanvas = (dataUrl) => {
+            const img = new Image();
+            img.onload = () => {
+                chekiDrawCanvas.width = 540;
+                chekiDrawCanvas.height = 860;
+                chekiCtx.drawImage(img, 0, 0);
+                historyStack = [chekiCtx.getImageData(0, 0, chekiDrawCanvas.width, chekiDrawCanvas.height)];
+                redoStack = [];
+                updateUndoRedoButtons();
+            };
+            img.src = dataUrl;
+        };
+
+        clearDrawBtn.addEventListener('click', () => {
+            if (basePolaroidDataUrl) {
+                loadBasePolaroidToCanvas(basePolaroidDataUrl);
+            }
+        });
+
+        const getDrawPos = (e) => {
+            const rect = chekiDrawCanvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const scaleX = chekiDrawCanvas.width / rect.width;
+            const scaleY = chekiDrawCanvas.height / rect.height;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        };
+
+        chekiDrawCanvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            const pos = getDrawPos(e);
+            lastX = pos.x;
+            lastY = pos.y;
+            chekiCtx.beginPath();
+            chekiCtx.moveTo(lastX, lastY);
+        });
+
+        chekiDrawCanvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            const pos = getDrawPos(e);
+            chekiCtx.strokeStyle = currentPenColor;
+            chekiCtx.lineWidth = currentPenSize;
+            chekiCtx.lineCap = 'round';
+            chekiCtx.lineJoin = 'round';
+
+            const xc = (lastX + pos.x) / 2;
+            const yc = (lastY + pos.y) / 2;
+            chekiCtx.quadraticCurveTo(lastX, lastY, xc, yc);
+            chekiCtx.stroke();
+
+            lastX = pos.x;
+            lastY = pos.y;
+        });
+
+        const stopDrawing = () => {
+            if (isDrawing) {
+                isDrawing = false;
+                chekiCtx.stroke();
+                saveState();
+            }
+        };
+        chekiDrawCanvas.addEventListener('mouseup', stopDrawing);
+        chekiDrawCanvas.addEventListener('mouseleave', stopDrawing);
+
+        chekiDrawCanvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDrawing = true;
+            const pos = getDrawPos(e);
+            lastX = pos.x;
+            lastY = pos.y;
+            chekiCtx.beginPath();
+            chekiCtx.moveTo(lastX, lastY);
+        });
+
+        chekiDrawCanvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!isDrawing) return;
+            const pos = getDrawPos(e);
+            chekiCtx.strokeStyle = currentPenColor;
+            chekiCtx.lineWidth = currentPenSize;
+            chekiCtx.lineCap = 'round';
+            chekiCtx.lineJoin = 'round';
+
+            const xc = (lastX + pos.x) / 2;
+            const yc = (lastY + pos.y) / 2;
+            chekiCtx.quadraticCurveTo(lastX, lastY, xc, yc);
+            chekiCtx.stroke();
+
+            lastX = pos.x;
+            lastY = pos.y;
+        });
+
+        chekiDrawCanvas.addEventListener('touchend', stopDrawing);
+
+        closeEditorBtn.addEventListener('click', () => {
+            chekiEditorModal.classList.add('hidden');
+        });
+        cancelEditorBtn.addEventListener('click', () => {
+            chekiEditorModal.classList.add('hidden');
+        });
+
+        saveChekiBtn.addEventListener('click', () => {
+            chekiDrawCanvas.toBlob((blob) => {
+                if (blob) {
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = `cheki_doodle_${Date.now()}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                }
+            }, 'image/png');
+
+            const finalDataUrl = chekiDrawCanvas.toDataURL('image/png');
+            chekiPreviewImg.src = finalDataUrl;
+            chekiEditorModal.classList.add('hidden');
+
+            if (chekiTimeout) clearTimeout(chekiTimeout);
+            chekiModal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                chekiModal.classList.remove('opacity-0', 'transform', 'translate-y-4');
+            });
+            chekiTimeout = setTimeout(() => {
+                chekiModal.classList.add('opacity-0', 'transform', 'translate-y-4');
+                setTimeout(() => {
+                    chekiModal.classList.add('hidden');
+                    chekiPreviewImg.src = '';
+                }, 300);
+            }, 2000);
+
+            showMessage('落書き入りチェキを保存しました！', false);
+        });
+
+        takePhotoBtn.addEventListener('click', () => {
+            if (!currentVrm) {
+                showMessage('VRMモデルが読み込まれていません', true);
+                return;
+            }
+            
+            try {
+                renderer.render(scene, camera);
+                
+                const sourceCanvas = canvas;
+                const polaroidCanvas = document.createElement('canvas');
+                const ctx = polaroidCanvas.getContext('2d');
+                
+                const pWidth = 540;
+                const pHeight = 860;
+                
+                polaroidCanvas.width = pWidth;
+                polaroidCanvas.height = pHeight;
+                
+                ctx.fillStyle = '#fafafa';
+                ctx.fillRect(0, 0, pWidth, pHeight);
+                
+                const imgWidth = 460;
+                const imgHeight = 620;
+                const imgX = (pWidth - imgWidth) / 2;
+                const imgY = 40;
+                
+                const srcW = sourceCanvas.width;
+                const srcH = sourceCanvas.height;
+                const targetAspect = imgWidth / imgHeight;
+                const srcAspect = srcW / srcH;
+                
+                let cropW, cropH, cropX, cropY;
+                if (srcAspect > targetAspect) {
+                    cropH = srcH;
+                    cropW = srcH * targetAspect;
+                    cropX = (srcW - cropW) / 2;
+                    cropY = 0;
+                } else {
+                    cropW = srcW;
+                    cropH = srcW / targetAspect;
+                    cropX = 0;
+                    cropY = (srcH - cropH) / 2;
+                }
+                
+                ctx.drawImage(sourceCanvas, cropX, cropY, cropW, cropH, imgX, imgY, imgWidth, imgHeight);
+                
+                ctx.strokeStyle = '#e0e0e0';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(imgX, imgY, imgWidth, imgHeight);
+                
+                ctx.fillStyle = '#666666';
+                ctx.font = '500 22px "M PLUS Rounded 1c", sans-serif';
+                ctx.textAlign = 'right';
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('ja-JP').replace(/\//g, '.');
+                const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                ctx.fillText(`${dateStr} ${timeStr}`, pWidth - 40, pHeight - 40);
+                
+                basePolaroidDataUrl = polaroidCanvas.toDataURL('image/png');
+                loadBasePolaroidToCanvas(basePolaroidDataUrl);
+                
+                chekiEditorModal.classList.remove('hidden');
+                showMessage('チェキに落書きできます！', false);
+            } catch (err) {
+                console.error(err);
+                showMessage('チェキ撮影中にエラーが発生しました', true);
+            }
+        });
+
+        initThreeJS();
+        animate();
+    </script>
+</body>
+</html>
